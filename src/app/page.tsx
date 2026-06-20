@@ -1,65 +1,111 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import { useProjectStore } from '@/store/projectStore';
+import { useProjectGenerator } from '@/hooks/useProjectGenerator';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { TopNav } from '@/components/layout/TopNav';
+import { WelcomeScreen } from '@/components/home/WelcomeScreen';
+import { IdeaInput } from '@/components/workspace/IdeaInput';
+import { InspirationInput } from '@/components/workspace/InspirationInput';
+import { ProjectWorkspace } from '@/components/workspace/ProjectWorkspace';
+import type { InspirationAnalysis } from '@/types';
+
+type View = 'welcome' | 'idea' | 'inspiration';
 
 export default function Home() {
+  const [view, setView] = useState<View>('welcome');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Wait for client mount before reading persisted store
+  useEffect(() => { setMounted(true); }, []);
+
+  const { getActiveProject, sidebarOpen, setActiveProject } = useProjectStore();
+  const { generateFromIdea, generateFromInspiration } = useProjectGenerator();
+
+  const activeProject = mounted ? getActiveProject() : null;
+
+  const handleIdeaSubmit = async (idea: string) => {
+    setIsGenerating(true);
+    setView('welcome');
+    try {
+      await generateFromIdea(idea);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleInspirationSubmit = async (
+    base64: string,
+    mimeType: string,
+    customPrompt: string,
+    analysis: InspirationAnalysis
+  ) => {
+    setIsGenerating(true);
+    setView('welcome');
+    try {
+      await generateFromInspiration(base64, mimeType, customPrompt, analysis);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const goToIdea = () => { setActiveProject(null); setView('idea'); };
+  const goToInspiration = () => { setActiveProject(null); setView('inspiration'); };
+
+  const showProject = mounted && !!activeProject;
+  const showIdea = !showProject && view === 'idea';
+  const showInspiration = !showProject && view === 'inspiration';
+  const showWelcome = !showProject && !showIdea && !showInspiration;
+
+  // Render a minimal shell until mounted to avoid hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="h-screen flex overflow-hidden bg-[#020408]">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <div className="h-14 flex-shrink-0 border-b border-white/[0.06]" />
+          <div className="flex-1" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="h-screen flex overflow-hidden bg-[#020408]">
+      {/* Sidebar */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <Sidebar
+            key="sidebar"
+            onNewIdea={goToIdea}
+            onNewInspiration={goToInspiration}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Main */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <TopNav />
+
+        <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <AnimatePresence mode="wait">
+            {showProject && (
+              <ProjectWorkspace key={activeProject!.id} project={activeProject!} />
+            )}
+            {showIdea && (
+              <IdeaInput key="idea" onSubmit={handleIdeaSubmit} isLoading={isGenerating} />
+            )}
+            {showInspiration && (
+              <InspirationInput key="inspiration" onSubmit={handleInspirationSubmit} isLoading={isGenerating} />
+            )}
+            {showWelcome && (
+              <WelcomeScreen key="welcome" onBuildIdea={goToIdea} onInspiration={goToInspiration} />
+            )}
+          </AnimatePresence>
+        </main>
+      </div>
     </div>
   );
 }
