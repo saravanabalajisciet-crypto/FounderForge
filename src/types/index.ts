@@ -12,6 +12,7 @@ export type GenerationStep =
   | 'marketAnalysis'
   | 'improvement'
   | 'launchPreview'
+  | 'snapshot'
   | 'complete';
 
 export interface Blueprint {
